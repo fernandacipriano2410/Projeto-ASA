@@ -1,0 +1,40 @@
+---
+- name: Identificar a segunda interface de rede
+  ansible.builtin.shell: |
+    set -o pipefail
+    ip -o link show | awk -F': ' '$2 != "lo" {print $2}' | cut -d@ -f1 | sed -n '2p'
+  args:
+    executable: /bin/bash
+  register: private_if
+  changed_when: false
+- name: Confirmar interface privada
+  ansible.builtin.assert:
+    that:
+      - private_if.stdout | length > 0
+    fail_msg: 'Nao foi possivel detectar a interface host-only.'
+- name: Instalar ifupdown e cliente DHCP
+  ansible.builtin.apt:
+    name: [ifupdown, isc-dhcp-client]
+    state: present
+- name: Criar configuracao DHCP da interface privada
+  ansible.builtin.copy:
+    dest: /etc/network/interfaces.d/90-ifpb
+    content: |
+      auto {{ private_if.stdout }}
+      iface {{ private_if.stdout }} inet dhcp
+    mode: '0644'
+  register: dhcp_iface_config
+- name: Ativar ou renovar interface privada
+  ansible.builtin.shell: |
+    ifdown {{ private_if.stdout }} 2>/dev/null || true
+    ifup {{ private_if.stdout }}
+  when: dhcp_iface_config.changed
+  changed_when: true
+- name: Verificar IP obtido via DHCP
+  ansible.builtin.command: 'ip -4 addr show dev {{ private_if.stdout }}'
+  register: ip_dhcp
+  changed_when: false
+- name: Falhar se nao houver IP da rede de laboratorio
+  ansible.builtin.assert:
+    that: "'192.168.56.' in ip_dhcp.stdout"
+    fail_msg: 'DHCP do arq nao entregou IP; verifique se o DHCP do VirtualBox foi desativado.'

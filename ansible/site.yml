@@ -1,0 +1,23 @@
+---
+- name: Configurar servidor arq primeiro
+  hosts: arq
+  become: true
+  vars_files: [vars.yml]
+  handlers:
+    - import_tasks: handlers.yml
+  tasks:
+    - import_tasks: tasks/comum.yml
+    - import_tasks: tasks/arq.yml
+    - meta: flush_handlers
+
+- name: Configurar db, app e cli depois do DHCP de arq
+  hosts: demais
+  become: true
+  vars_files: [vars.yml]
+  handlers:
+    - import_tasks: handlers.yml
+  tasks:
+    - import_tasks: tasks/rede.yml
+    - import_tasks: tasks/comum.yml
+    - import_tasks: tasks/servicos.yml
+    - meta: flush_handlers

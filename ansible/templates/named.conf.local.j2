@@ -1,0 +1,10 @@
+zone "{{ dominio }}" {
+  type primary;
+  file "/etc/bind/db.{{ dominio }}";
+  allow-transfer { none; };
+};
+zone "56.168.192.in-addr.arpa" {
+  type primary;
+  file "/etc/bind/db.192.168.56";
+  allow-transfer { none; };
+};

@@ -1,0 +1,16 @@
+---
+- name: Reiniciar chrony
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+- name: Reiniciar ssh
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+- name: Reexportar NFS
+  ansible.builtin.command: exportfs -ra
+  changed_when: true
+- name: Reiniciar autofs
+  ansible.builtin.service:
+    name: autofs
+    state: restarted

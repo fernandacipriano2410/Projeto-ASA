@@ -1,0 +1,67 @@
+---
+- name: Atualizar Debian
+  ansible.builtin.apt:
+    update_cache: true
+    upgrade: dist
+    cache_valid_time: 3600
+- name: Instalar programas comuns
+  ansible.builtin.apt:
+    name: [chrony, openssh-server, nfs-common, sudo, python3, acl, dnsutils]
+    state: present
+- name: Ajustar fuso horario
+  community.general.timezone:
+    name: America/Recife
+- name: Configurar NTP brasileiro
+  ansible.builtin.lineinfile:
+    path: /etc/chrony/chrony.conf
+    regexp: '^pool '
+    line: 'pool pool.ntp.br iburst'
+  notify: Reiniciar chrony
+- name: Criar grupo ifpb
+  ansible.builtin.group:
+    name: ifpb
+- name: Criar usuarias
+  ansible.builtin.user:
+    name: '{{ item }}'
+    groups: ifpb
+    append: true
+    shell: /bin/bash
+    create_home: true
+  loop: ['{{ integrante1 }}', '{{ integrante2 }}']
+- name: Instalar chaves publicas das alunas
+  ansible.posix.authorized_key:
+    user: '{{ item }}'
+    key: "{{ lookup('file', '../chaves/' ~ item ~ '.pub') }}"
+    state: present
+  loop: ['{{ integrante1 }}', '{{ integrante2 }}']
+- name: Sudo para membros do ifpb
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/ifpb
+    content: "%ifpb ALL=(ALL:ALL) ALL\n"
+    mode: '0440'
+    validate: '/usr/sbin/visudo -cf %s'
+- name: Banner de seguranca
+  ansible.builtin.copy:
+    dest: /etc/issue.net
+    content: "Acesso apenas para pessoas com autorização expressa!!!\n"
+- name: SSH somente chave, sem root, grupos permitidos
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/99-ifpb.conf
+    content: |
+      PubkeyAuthentication yes
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      AllowGroups vagrant ifpb
+      Banner /etc/issue.net
+    mode: '0644'
+  notify: Reiniciar ssh
+- name: Validar configuracao SSH
+  ansible.builtin.command: /usr/sbin/sshd -t
+  changed_when: false
+- name: Ativar chrony e ssh
+  ansible.builtin.service:
+    name: '{{ item }}'
+    state: started
+    enabled: true
+  loop: [chrony, ssh]

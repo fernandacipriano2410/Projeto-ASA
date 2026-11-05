@@ -1,0 +1,45 @@
+---
+- name: Instalar servicos de acordo com o papel
+  ansible.builtin.apt:
+    name: '{{ (inventory_hostname == "db") | ternary(["mariadb-server"], (inventory_hostname == "app") | ternary(["apache2"], ["firefox-esr", "xauth"])) + ["autofs"] }}'
+    state: present
+- name: Configurar montagem automatica NFS
+  ansible.builtin.copy:
+    dest: /etc/auto.master.d/ifpb.autofs
+    content: "/- /etc/auto.ifpb --timeout=60\n"
+    mode: '0644'
+- name: Configurar mapa do autofs
+  ansible.builtin.copy:
+    dest: /etc/auto.ifpb
+    content: "/var/nfs -fstype=nfs4,rw {{ ip_arq }}:/dados/nfs\n"
+    mode: '0644'
+  notify: Reiniciar autofs
+- name: Garantir diretorio mestre autofs
+  ansible.builtin.file:
+    path: /var/nfs
+    state: directory
+    mode: '0755'
+- name: Iniciar autofs
+  ansible.builtin.service:
+    name: autofs
+    enabled: true
+    state: started
+- name: Ajustar index Apache
+  ansible.builtin.template:
+    src: index.html.j2
+    dest: /var/www/html/index.html
+    mode: '0644'
+  when: inventory_hostname == 'app'
+- name: Garantir Apache ou MariaDB ativo
+  ansible.builtin.service:
+    name: "{{ 'apache2' if inventory_hostname == 'app' else 'mariadb' }}"
+    enabled: true
+    state: started
+  when: inventory_hostname in ['app', 'db']
+- name: Permitir X11 forwarding apenas no cliente
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/70-ifpb-x11.conf
+    content: "X11Forwarding yes\nX11UseLocalhost yes\n"
+    mode: '0644'
+  when: inventory_hostname == 'cli'
+  notify: Reiniciar ssh

@@ -1,0 +1,11 @@
+acl ifpb_lan { 127.0.0.1; 192.168.56.0/24; };
+options {
+  directory "/var/cache/bind";
+  recursion yes;
+  allow-recursion { ifpb_lan; };
+  allow-query { ifpb_lan; };
+  listen-on { 127.0.0.1; {{ ip_arq }}; };
+  listen-on-v6 { none; };
+  forwarders { 1.1.1.1; 8.8.8.8; };
+  dnssec-validation auto;
+};

@@ -1,0 +1,120 @@
+---
+- name: Instalar DHCP, DNS, LVM e NFS
+  ansible.builtin.apt:
+    name: [isc-dhcp-server, bind9, lvm2, nfs-kernel-server, e2fsprogs]
+    state: present
+- name: Descobrir interface com IP fixo do ARQ
+  ansible.builtin.shell: "ip -o -4 addr show | awk '$4 ~ /^{{ ip_arq | regex_escape }}\\// {print $2;exit}'"
+  register: arq_iface
+  changed_when: false
+- name: Validar interface ARQ
+  ansible.builtin.assert:
+    that: 'arq_iface.stdout | length > 0'
+- name: Definir interface DHCP
+  ansible.builtin.copy:
+    dest: /etc/default/isc-dhcp-server
+    content: |
+      INTERFACESv4="{{ arq_iface.stdout }}"
+      INTERFACESv6=""
+    mode: '0644'
+- name: Configurar dhcpd.conf
+  ansible.builtin.template:
+    src: dhcpd.conf.j2
+    dest: /etc/dhcp/dhcpd.conf
+    mode: '0644'
+    validate: '/usr/sbin/dhcpd -t -cf %s'
+- name: Configurar opcoes do BIND
+  ansible.builtin.template:
+    src: named.conf.options.j2
+    dest: /etc/bind/named.conf.options
+    mode: '0644'
+- name: Configurar declaracoes de zonas
+  ansible.builtin.template:
+    src: named.conf.local.j2
+    dest: /etc/bind/named.conf.local
+    mode: '0644'
+- name: Zona direta
+  ansible.builtin.template:
+    src: db.forward.j2
+    dest: '/etc/bind/db.{{ dominio }}'
+    mode: '0644'
+- name: Zona reversa
+  ansible.builtin.template:
+    src: db.reverse.j2
+    dest: /etc/bind/db.192.168.56
+    mode: '0644'
+- name: Verificar sintaxe completa DNS
+  ansible.builtin.command: named-checkconf -z
+  changed_when: false
+- name: Ligar DNS
+  ansible.builtin.service:
+    name: bind9
+    enabled: true
+    state: restarted
+- name: Ligar DHCP
+  ansible.builtin.service:
+    name: isc-dhcp-server
+    enabled: true
+    state: restarted
+- name: Identificar discos de 10 GB por caminho persistente
+  ansible.builtin.shell: |
+    lsblk -b -dn -o NAME,SIZE,TYPE | awk '$2 >= 9500000000 && $2 <= 11000000000 && $3 == "disk" {print "/dev/"$1}'
+  register: discos
+  changed_when: false
+- name: Validar tres discos adicionais
+  ansible.builtin.assert:
+    that: 'discos.stdout_lines | length == 3'
+    fail_msg: 'Esperados exatamente 3 discos extras de 10GiB; confira lsblk.'
+- name: Criar volume group dados (ATENCAO - ALTERA DISCOS)
+  community.general.lvg:
+    vg: dados
+    pvs: '{{ discos.stdout_lines }}'
+- name: Criar logical volume ifpb de 15 GiB
+  community.general.lvol:
+    vg: dados
+    lv: ifpb
+    size: 15g
+- name: Formatar ext4
+  community.general.filesystem:
+    fstype: ext4
+    dev: /dev/dados/ifpb
+- name: Montar /dados de forma persistente
+  ansible.posix.mount:
+    path: /dados
+    src: /dev/dados/ifpb
+    fstype: ext4
+    opts: defaults
+    state: mounted
+- name: Criar usuario nfs-ifpb sem shell
+  ansible.builtin.user:
+    name: nfs-ifpb
+    shell: /usr/sbin/nologin
+    system: true
+    create_home: false
+- name: Criar pasta NFS com dono exclusivo
+  ansible.builtin.file:
+    path: /dados/nfs
+    state: directory
+    owner: nfs-ifpb
+    group: nfs-ifpb
+    mode: '0700'
+- name: Obter UID do usuario NFS
+  ansible.builtin.command: id -u nfs-ifpb
+  register: nfs_uid
+  changed_when: false
+- name: Obter GID do usuario NFS
+  ansible.builtin.command: id -g nfs-ifpb
+  register: nfs_gid
+  changed_when: false
+- name: Configurar exportacao NFS
+  ansible.builtin.copy:
+    dest: /etc/exports.d/ifpb.exports
+    content: |
+      /dados/nfs 192.168.56.0/24(rw,sync,all_squash,anonuid={{ nfs_uid.stdout }},anongid={{ nfs_gid.stdout }},no_subtree_check)
+    mode: '0644'
+  notify: Reexportar NFS
+- name: Habilitar NFS
+  ansible.builtin.service:
+    name: nfs-kernel-server
+    state: started
+    enabled: true

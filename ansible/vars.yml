@@ -1,0 +1,13 @@
+---
+integrante1: fernanda
+integrante2: julia
+nome_completo1: Fernanda Emily de Medeiros Cipriano
+nome_completo2: Júlia Evelim Virginio da Silva
+matricula1: '20251380038'
+matricula2: '20251380004'
+dominio: fernanda.julia.devops
+ip_arq: 192.168.56.138
+ip_db: 192.168.56.104
+ip_app: 192.168.56.184
+mac_db: '08:00:27:AB:CD:11'
+mac_app: '08:00:27:AB:CD:22'
