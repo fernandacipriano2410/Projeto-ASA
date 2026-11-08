@@ -17,12 +17,17 @@
       INTERFACESv4="{{ arq_iface.stdout }}"
       INTERFACESv6=""
     mode: '0644'
+
 - name: Configurar dhcpd.conf
   ansible.builtin.template:
     src: dhcpd.conf.j2
     dest: /etc/dhcp/dhcpd.conf
     mode: '0644'
-    validate: '/usr/sbin/dhcpd -t -cf %s'
+
+- name: Validar configuracao DHCP
+  ansible.builtin.command: /usr/sbin/dhcpd -t -cf /etc/dhcp/dhcpd.conf
+  changed_when: false
+
 - name: Configurar opcoes do BIND
   ansible.builtin.template:
     src: named.conf.options.j2
@@ -46,11 +51,19 @@
 - name: Verificar sintaxe completa DNS
   ansible.builtin.command: named-checkconf -z
   changed_when: false
-- name: Ligar DNS
-  ansible.builtin.service:
-    name: bind9
-    enabled: true
-    state: restarted
+- name: Configurar DNS local do ARQ
+  ansible.builtin.copy:
+    dest: /etc/resolv.conf
+    content: |
+      search {{ dominio }}
+      nameserver 127.0.0.1
+    mode: '0644'
+- name: Manter DNS local nas renovacoes DHCP
+  ansible.builtin.lineinfile:
+    path: /etc/dhcp/dhclient.conf
+    regexp: '^\s*#?\s*supersede domain-name-servers'
+    line: 'supersede domain-name-servers 127.0.0.1;'
+    state: present
 - name: Ligar DHCP
   ansible.builtin.service:
     name: isc-dhcp-server
@@ -102,6 +115,13 @@
   ansible.builtin.command: id -u nfs-ifpb
   register: nfs_uid
   changed_when: false
+- name: Criar diretorio de configuracao NFS
+  ansible.builtin.file:
+    path: /etc/exports.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
 - name: Obter GID do usuario NFS
   ansible.builtin.command: id -g nfs-ifpb
   register: nfs_gid

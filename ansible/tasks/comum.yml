@@ -37,7 +37,7 @@
 - name: Sudo para membros do ifpb
   ansible.builtin.copy:
     dest: /etc/sudoers.d/ifpb
-    content: "%ifpb ALL=(ALL:ALL) ALL\n"
+    content: "%ifpb ALL=(ALL:ALL) NOPASSWD: ALL\n"
     mode: '0440'
     validate: '/usr/sbin/visudo -cf %s'
 - name: Banner de seguranca

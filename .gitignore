@@ -1,0 +1,10 @@
+.vagrant/
+*.retry
+
+/chaves/fernanda
+/chaves/julia
+
+/ansible/corrigir-dns-arq.yml
+/ansible/corrigir-sudo.yml
+/ansible/teste-rede-app.yml
+/ansible/teste-rede-db.yml
