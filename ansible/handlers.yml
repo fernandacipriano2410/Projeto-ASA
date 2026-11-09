@@ -14,3 +14,7 @@
   ansible.builtin.service:
     name: autofs
     state: restarted
+- name: Recarregar BIND9
+  ansible.builtin.service:
+    name: bind9
+    state: reloaded

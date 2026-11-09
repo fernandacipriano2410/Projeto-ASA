@@ -33,21 +33,28 @@
     src: named.conf.options.j2
     dest: /etc/bind/named.conf.options
     mode: '0644'
+  notify: Recarregar BIND9
+
 - name: Configurar declaracoes de zonas
   ansible.builtin.template:
     src: named.conf.local.j2
     dest: /etc/bind/named.conf.local
     mode: '0644'
+  notify: Recarregar BIND9
+
 - name: Zona direta
   ansible.builtin.template:
     src: db.forward.j2
     dest: '/etc/bind/db.{{ dominio }}'
     mode: '0644'
+  notify: Recarregar BIND9
+
 - name: Zona reversa
   ansible.builtin.template:
     src: db.reverse.j2
     dest: /etc/bind/db.192.168.56
     mode: '0644'
+  notify: Recarregar BIND9
 - name: Verificar sintaxe completa DNS
   ansible.builtin.command: named-checkconf -z
   changed_when: false
